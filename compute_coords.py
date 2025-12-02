@@ -1,6 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import plotly.graph_objs as go
 
 N_led = 500
 
@@ -22,25 +21,31 @@ y = R * np.sin(theta)
 
 coords = np.stack([x, y, z], axis=1)  # shape (500, 3)
 
-fig = plt.figure(figsize=(8, 10))
-ax = fig.add_subplot(111, projection='3d')
+fig = go.Figure(data=[go.Scatter3d(
+    x=x,
+    y=y,
+    z=z,
+    mode='markers',
+    marker=dict(
+        size=4,
+        color=z,             # color by height
+        colorscale='Viridis',
+        opacity=0.8
+    )
+)])
 
-ax.scatter(x, y, z, c=z, cmap='viridis', s=10)
+fig.update_layout(
+    title="Interactive 3D LED Coordinate Map (Helical Tree Model)",
+    scene=dict(
+        xaxis_title='X (in)',
+        yaxis_title='Y (in)',
+        zaxis_title='Z (in)',
+        aspectmode='data'  # ensures equal scale
+    ),
+    width=800,
+    height=900
+)
+import plotly.io as pio
+pio.renderers.default = "browser"   
 
-ax.set_title("3D LED Coordinate Map (Helical Tree Model)")
-ax.set_xlabel("X (in)")
-ax.set_ylabel("Y (in)")
-ax.set_zlabel("Z (in)")
-
-# Make axes equal so the tree looks correct
-max_range = np.array([x.max()-x.min(), y.max()-y.min(), z.max()-z.min()]).max() / 2.0
-
-mid_x = (x.max()+x.min()) * 0.5
-mid_y = (y.max()+y.min()) * 0.5
-mid_z = (z.max()+z.min()) * 0.5
-
-ax.set_xlim(mid_x - max_range, mid_x + max_range)
-ax.set_ylim(mid_y - max_range, mid_y + max_range)
-ax.set_zlim(mid_z - max_range, mid_z + max_range)
-
-plt.show()
+fig.show()
