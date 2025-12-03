@@ -11,7 +11,7 @@ LED_COUNT      = 500
 LED_PIN        = 18
 LED_FREQ_HZ    = 800000
 LED_DMA        = 10
-LED_BRIGHTNESS = 150     # power-safe brightness
+LED_BRIGHTNESS = 150
 LED_INVERT     = False
 LED_CHANNEL    = 0
 
@@ -21,7 +21,6 @@ LED_CHANNEL    = 0
 with open("tree_coords.json", "r") as f:
     coords = json.load(f)
 
-# Precompute coords for speed
 coords = [(float(x), float(y), float(z)) for (x, y, z) in coords]
 
 # ----------------------------
@@ -34,20 +33,19 @@ strip = PixelStrip(
 strip.begin()
 
 # ----------------------------
-# COLOR HELPERS (GRB ORDER!)
+# COLOR HELPERS (GRB!)
 # ----------------------------
 def GRB(r, g, b):
-    """WS2811 uses GRB, so order the bytes as (g, r, b)."""
     return Color(g, r, b)
 
-XMAS_COLORS = [
-    GRB(255, 255, 255),   # white
-    GRB(255,   0,   0),   # red
-    GRB(  0, 255,   0),   # green
-]
+WHITE = GRB(255, 255, 255)
+RED   = GRB(255, 0,   0)
+GREEN = GRB(0,   255, 0)
+
+XMAS_COLORS = [WHITE, RED, GREEN]
 
 # ----------------------------
-# UTILITY FUNCTIONS
+# UTILITY
 # ----------------------------
 def clear_strip():
     for i in range(LED_COUNT):
@@ -55,49 +53,51 @@ def clear_strip():
     strip.show()
 
 def dist(i, j):
-    """Euclidean distance between LED i and LED j."""
     x1, y1, z1 = coords[i]
     x2, y2, z2 = coords[j]
     return math.sqrt((x1-x2)**2 + (y1-y2)**2 + (z1-z2)**2)
 
 # ----------------------------
-# CONTAGION EFFECT
+# TRUE RADIAL PULSE EFFECT
 # ----------------------------
-def contagion_spread(
-    max_radius=50,        # how far the contagion can spread
-    radius_step=2,        # increment of distance per wave
-    frame_delay=0.03      # delay between waves
+def pulse_wave(
+    max_radius=60,
+    ring_thickness=2.0,
+    radius_step=1.2,
+    frame_delay=0.02
 ):
     """
-    Picks a random LED as the origin of a spread.
-    Spreads outward in 3D based on distance.
-    Each radius band gets a random color.
+    A clean outward-propagating pulse wave:
+    - LEDs flash only when the wave radius matches their distance from origin.
+    - LEDs turn off immediately afterward.
     """
 
     origin = random.randrange(LED_COUNT)
-    print(f"Contagion origin LED: {origin}")
+    print(f"Pulse origin LED: {origin}")
 
-    # Precompute distances from origin to all LEDs
+    # Precompute distances to origin
     distances = [dist(origin, i) for i in range(LED_COUNT)]
 
-    radius = 0
+    # Pick the pulse color
+    color = random.choice(XMAS_COLORS)
+
+    radius = 0.0
+
+    clear_strip()
 
     while radius < max_radius:
-        # Pick a random color for this radius wave
-        color = random.choice(XMAS_COLORS)
-
-        # Light LEDs whose distance falls within this "ring"
+        # Light LEDs only IF the wavefront is passing them now
         for i, d in enumerate(distances):
-            if radius <= d < radius + radius_step:
+            if radius <= d < radius + ring_thickness:
                 strip.setPixelColor(i, color)
+            else:
+                strip.setPixelColor(i, GRB(0, 0, 0))
 
         strip.show()
         time.sleep(frame_delay)
 
         radius += radius_step
 
-    # At the end, fade out
-    time.sleep(0.4)
     clear_strip()
 
 
@@ -107,13 +107,14 @@ def contagion_spread(
 if __name__ == "__main__":
     try:
         clear_strip()
-        print("Running contagious spread animation...")
+        print("Running radial pulse wave...")
 
         while True:
-            contagion_spread(
-                max_radius=55,     # adjust based on your tree size
-                radius_step=1.8,   # thinner rings look smoother
-                frame_delay=0.03
+            pulse_wave(
+                max_radius=65,       # large enough for whole tree
+                ring_thickness=2.0,  # thickness of the pulse
+                radius_step=1.1,     # how fast the pulse expands
+                frame_delay=0.02     # speed of animation
             )
 
     except KeyboardInterrupt:
