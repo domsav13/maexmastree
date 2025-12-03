@@ -4,7 +4,6 @@ import json
 import os
 from rpi_ws281x import PixelStrip, Color
 import signal
-import sys
 
 # -------------------------
 # GRB helper
@@ -55,6 +54,7 @@ def main():
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
 
+    # init strip
     strip = PixelStrip(
         LED_COUNT,
         LED_PIN,
@@ -66,36 +66,46 @@ def main():
     )
     strip.begin()
 
+    # -------------------------
+    # Precompute vertical order (by Y coordinate)
+    # -------------------------
+    # coords[i] = (x, y, z) → use y (index 1) as vertical axis
+    indices_bottom_to_top = sorted(
+        range(LED_COUNT),
+        key=lambda i: coords[i][1]  # sort by Y
+    )
+    indices_top_to_bottom = list(reversed(indices_bottom_to_top))
+
     try:
         while running:
-            # simple top-to-bottom wipe: light up from 0 -> N, then clear
-            for i in range(LED_COUNT):
+            # ensure strip is clear before each cycle
+            clear_strip()
+
+            # bottom -> top: turn on by increasing Y
+            for idx in indices_bottom_to_top:
                 if not running:
                     break
-                strip.setPixelColor(i, GRB(255, 255, 255))
+                strip.setPixelColor(idx, GRB(255, 255, 255))
                 strip.show()
                 time.sleep(0.01)
 
-            # brief pause fully lit
             if not running:
                 break
             time.sleep(0.2)
 
-            # clear from top to bottom
-            for i in range(LED_COUNT):
+            # top -> bottom: turn off by decreasing Y
+            for idx in indices_top_to_bottom:
                 if not running:
                     break
-                strip.setPixelColor(i, GRB(0, 0, 0))
+                strip.setPixelColor(idx, GRB(0, 0, 0))
                 strip.show()
                 time.sleep(0.005)
 
-            # small pause before repeating
             if not running:
                 break
             time.sleep(0.2)
 
     finally:
-        # make sure LEDs are off when process exits
         clear_strip()
 
 if __name__ == "__main__":
