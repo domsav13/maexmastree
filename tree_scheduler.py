@@ -21,7 +21,7 @@ ANIMATIONS = [
     "wind_swirl.py",
     "snowfall.py",
     "top_to_bottom.py",
-    # add more here
+    "snake.py"
 ]
 
 # Script to turn LEDs off instantly
