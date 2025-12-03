@@ -3,23 +3,13 @@
 <head>
     <title>LED Tree Control</title>
     <style>
-        body {
-            background: #111;
-            color: #eee;
-            font-family: Arial;
-            text-align: center;
-            margin-top: 100px;
-        }
+        body { background:#111; color:#eee; font-family:sans-serif; text-align:center; }
         button {
-            font-size: 2rem;
-            padding: 20px 50px;
-            margin: 20px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
+            font-size:2rem; padding:20px 50px; margin:30px;
+            border:none; border-radius:10px; cursor:pointer;
         }
-        #onBtn { background: #2ecc71; }
-        #offBtn { background: #e74c3c; }
+        #onBtn { background:#2ecc71; }
+        #offBtn { background:#e74c3c; }
     </style>
 </head>
 <body>
@@ -30,13 +20,12 @@
 <button id="offBtn">TURN OFF</button>
 
 <script>
-    document.getElementById("onBtn").onclick = () => {
-        fetch("/turn_on", { method: "POST" });
-    };
-
-    document.getElementById("offBtn").onclick = () => {
-        fetch("/turn_off", { method: "POST" });
-    };
+document.getElementById("onBtn").onclick = () => {
+    fetch("/turn_on", { method:"POST" });
+};
+document.getElementById("offBtn").onclick = () => {
+    fetch("/turn_off", { method:"POST" });
+};
 </script>
 
 </body>
