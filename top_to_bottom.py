@@ -1,29 +1,34 @@
-# top_to_bottom.py
+# top_to_bottom.py  (vertical band sweep)
 import time
 import json
 import os
-from rpi_ws281x import PixelStrip, Color
 import signal
+from rpi_ws281x import PixelStrip, Color
+import math
 
-# -------------------------
-# GRB helper
-# -------------------------
+running = True
+strip = None
+
 def GRB(r, g, b):
     return Color(g, r, b)
 
+def handle_exit(signum, frame):
+    global running
+    running = False
+
 # -------------------------
-# Load coordinates (for LED_COUNT)
+# Load coordinates
 # -------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-COORDS_JSON = os.path.join(BASE_DIR, "tree_coords.json")
-
-with open(COORDS_JSON, "r") as f:
+with open(os.path.join(BASE_DIR, "tree_coords.json")) as f:
     coords = json.load(f)
 
 LED_COUNT = len(coords)
+ys = [p[1] for p in coords]     # y-coordinates of each LED
+y_min, y_max = min(ys), max(ys)
 
 # -------------------------
-# Strip config
+# LED Strip Config
 # -------------------------
 LED_PIN        = 18
 LED_FREQ_HZ    = 800000
@@ -32,29 +37,18 @@ LED_BRIGHTNESS = 255
 LED_INVERT     = False
 LED_CHANNEL    = 0
 
-# global strip reference so we can clean up on signal
-strip = None
-running = True
-
-def handle_exit(signum, frame):
-    global running
-    running = False
-
 def clear_strip():
-    if strip is None:
-        return
-    for i in range(LED_COUNT):
-        strip.setPixelColor(i, GRB(0, 0, 0))
-    strip.show()
+    if strip:
+        for i in range(LED_COUNT):
+            strip.setPixelColor(i, GRB(0, 0, 0))
+        strip.show()
 
 def main():
-    global strip, running
+    global running, strip
 
-    # set up signal handlers so SIGTERM from Flask stops cleanly
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
 
-    # init strip
     strip = PixelStrip(
         LED_COUNT,
         LED_PIN,
@@ -67,46 +61,39 @@ def main():
     strip.begin()
 
     # -------------------------
-    # Precompute vertical order (by Y coordinate)
+    # Animation parameters
     # -------------------------
-    # coords[i] = (x, y, z) → use y (index 1) as vertical axis
-    indices_bottom_to_top = sorted(
-        range(LED_COUNT),
-        key=lambda i: coords[i][1]  # sort by Y
-    )
-    indices_top_to_bottom = list(reversed(indices_bottom_to_top))
+    band_height = (y_max - y_min) * 0.18   # thickness of the light band
+    speed = 0.015                           # delay between frames
+    direction = 1                           # +1 = up, -1 = down
+    position = y_min                        # current vertical position
 
     try:
         while running:
-            # ensure strip is clear before each cycle
-            clear_strip()
 
-            # bottom -> top: turn on by increasing Y
-            for idx in indices_bottom_to_top:
-                if not running:
-                    break
-                strip.setPixelColor(idx, GRB(255, 255, 255))
-                strip.show()
-                time.sleep(0.01)
+            # Move the band
+            position += direction * 0.8  # speed of vertical movement
 
-            if not running:
-                break
-            time.sleep(0.2)
+            # Reverse at bounds
+            if position + band_height > y_max:
+                direction = -1
+            elif position < y_min:
+                direction = 1
 
-            # top -> bottom: turn off by decreasing Y
-            for idx in indices_top_to_bottom:
-                if not running:
-                    break
-                strip.setPixelColor(idx, GRB(0, 0, 0))
-                strip.show()
-                time.sleep(0.005)
+            # Render frame
+            for i, y in enumerate(ys):
+                inside = (position <= y <= position + band_height)
+                if inside:
+                    strip.setPixelColor(i, GRB(255, 255, 255))  # bright white band
+                else:
+                    strip.setPixelColor(i, GRB(0, 0, 0))         # off
 
-            if not running:
-                break
-            time.sleep(0.2)
+            strip.show()
+            time.sleep(speed)
 
     finally:
         clear_strip()
+
 
 if __name__ == "__main__":
     main()
