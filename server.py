@@ -1,17 +1,17 @@
 from flask import Flask, render_template, jsonify
-import threading
 import subprocess
 import time
-
-import top_to_bottom
-import leds_off
+import signal
 
 app = Flask(__name__)
 
-animation_thread = None
+current_process = None
 
-def run_animation():
-    top_to_bottom.run_top_to_bottom()
+def stop_current_animation():
+    global current_process
+    if current_process is not None:
+        current_process.send_signal(signal.SIGTERM)
+        current_process = None
 
 @app.route("/")
 def index():
@@ -19,32 +19,26 @@ def index():
 
 @app.route("/turn_on", methods=["POST"])
 def turn_on():
-    global animation_thread
+    global current_process
 
-    # stop previous animation if running
-    top_to_bottom.running = False
+    stop_current_animation()  # stop old animation
     time.sleep(0.1)
 
-    # turn off LEDs before starting new animation
-    leds_off.turn_all_off()
-
-    # start new animation thread
-    animation_thread = threading.Thread(target=run_animation)
-    animation_thread.daemon = True
-    animation_thread.start()
+    # start animation as root
+    current_process = subprocess.Popen(
+        ["sudo", "python3", "top_to_bottom.py"]
+    )
 
     return jsonify({"status": "ON"})
 
 @app.route("/turn_off", methods=["POST"])
 def turn_off():
-    global animation_thread
+    global current_process
 
-    # stop animation
-    top_to_bottom.running = False
+    stop_current_animation()
     time.sleep(0.1)
 
-    # turn all LEDs off
-    leds_off.turn_all_off()
+    subprocess.run(["sudo", "python3", "leds_off.py"])
 
     return jsonify({"status": "OFF"})
 
