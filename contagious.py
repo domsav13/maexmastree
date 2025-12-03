@@ -3,54 +3,71 @@ import json
 import random
 import math
 from rpi_ws281x import PixelStrip, Color
+import colorsys
 
-# ----------------------------
-# LED STRIP CONFIG
-# ----------------------------
+# --------------------------------------------------------
+# LED STRIP CONFIG (GRB WS2811)
+# --------------------------------------------------------
 LED_COUNT      = 500
 LED_PIN        = 18
 LED_FREQ_HZ    = 800000
 LED_DMA        = 10
-LED_BRIGHTNESS = 255    # we will control brightness manually
+LED_BRIGHTNESS = 255     # use full brightness; we will scale manually
 LED_INVERT     = False
 LED_CHANNEL    = 0
 
-# ----------------------------
+# --------------------------------------------------------
 # LOAD 3D COORDINATES
-# ----------------------------
+# --------------------------------------------------------
 with open("tree_coords.json", "r") as f:
     coords = json.load(f)
 
 coords = [(float(x), float(y), float(z)) for (x, y, z) in coords]
 
-# ----------------------------
-# INITIALIZE LED STRIP
-# ----------------------------
+# --------------------------------------------------------
+# INITIALIZE PIXEL STRIP
+# --------------------------------------------------------
 strip = PixelStrip(
     LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA,
     LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL
 )
 strip.begin()
 
-# ----------------------------
-# COLOR HELPERS (GRB FORMAT)
-# ----------------------------
+# --------------------------------------------------------
+# COLOR HELPERS (WS2811 USES GRB!)
+# --------------------------------------------------------
 def GRB(r, g, b):
-    """WS2811 uses GRB byte order."""
+    """Create a Color() value in GRB order."""
     return Color(g, r, b)
 
-WHITE = GRB(255, 255, 255)
-RED   = GRB(255,   0,   0)
-GREEN = GRB(0,   255,   0)
+def hsv_to_grb(h):
+    """Convert a hue (0–1) to bright GRB color via HSV."""
+    r, g, b = colorsys.hsv_to_rgb(h, 1.0, 1.0)
+    return GRB(int(r*255), int(g*255), int(b*255))
 
-XMAS_COLORS = [WHITE, RED, GREEN]
+# 20 vibrant rainbow hues
+RAINBOW_COLORS = [hsv_to_grb(i/20) for i in range(20)]
 
-# ----------------------------
-# UTILITY FUNCTIONS
-# ----------------------------
+# Extra accent colors
+EXTRA_COLORS = [
+    GRB(255, 0,   0),    # bright red
+    GRB(0,   255, 0),    # bright green
+    GRB(255, 255, 0),    # gold/yellow
+    GRB(255, 0,   255),  # magenta
+    GRB(0,   255, 255),  # cyan
+    GRB(255, 100, 0),    # orange
+    GRB(180, 0,   255),  # violet
+    GRB(255, 255, 255),  # white highlight
+]
+
+COLOR_POOL = RAINBOW_COLORS + EXTRA_COLORS
+
+# --------------------------------------------------------
+# UTILITY
+# --------------------------------------------------------
 def clear_strip():
     for i in range(LED_COUNT):
-        strip.setPixelColor(i, GRB(0, 0, 0))
+        strip.setPixelColor(i, GRB(0,0,0))
     strip.show()
 
 def distance(i, j):
@@ -58,36 +75,35 @@ def distance(i, j):
     x2, y2, z2 = coords[j]
     return math.sqrt((x1-x2)**2 + (y1-y2)**2 + (z1-z2)**2)
 
-# ----------------------------
-# PRECOMPUTE DISTANCES
-# ----------------------------
-print("Computing distance matrix (one-time init)...")
+# --------------------------------------------------------
+# PRECOMPUTE DISTANCE MATRIX (fast animation)
+# --------------------------------------------------------
+print("Computing distance matrix (one-time)…")
 DIST = [
     [distance(i, j) for j in range(LED_COUNT)]
     for i in range(LED_COUNT)
 ]
-print("Distance matrix ready.")
+print("Distance matrix ready.\n")
 
-# ----------------------------
-# CONSTANT BRIGHTNESS SCALING
-# ----------------------------
+# --------------------------------------------------------
+# CONSTANT BRIGHTNESS NORMALIZATION
+# --------------------------------------------------------
 def scale_brightness(color, lit_count, max_total_brightness=160):
     """
-    Keeps visual brightness constant regardless of how many LEDs are lit.
-    color = GRB ordered Color()
+    Ensures visual brightness stays constant no matter how 
+    many LEDs are lit. lit_count is number of lit LEDs.
     """
     if lit_count <= 0:
-        return GRB(0, 0, 0)
+        return GRB(0,0,0)
 
-    # Extract GRB components from packed Color
+    # extract GRB
     g = (color >> 16) & 0xFF
     r = (color >> 8)  & 0xFF
     b =  color        & 0xFF
 
-    # Normalize scale
-    scale = max_total_brightness / (lit_count)
+    scale = max_total_brightness / lit_count
     if scale > 1:
-        scale = 1  # avoid going brighter than original
+        scale = 1
 
     r = int(r * scale)
     g = int(g * scale)
@@ -95,75 +111,70 @@ def scale_brightness(color, lit_count, max_total_brightness=160):
 
     return GRB(r, g, b)
 
-# ----------------------------
-# SPHERICAL CONTAGION FILL
-# ----------------------------
+# --------------------------------------------------------
+# SPHERICAL CONTAGION FILL (GROW UNTIL FULL)
+# --------------------------------------------------------
 def spherical_fill(
     radius_step=1.2,
     frame_delay=0.02
 ):
     """
-    - Pick a random origin LED
-    - Expand outward until all LEDs are lit
-    - LEDs stay ON during that spread
-    - After full illumination: reset & repeat
-    - Colors are GRB and random per spread
+    One LED is chosen.
+    Radius expands outward until all LEDs are lit.
+    LEDs stay ON once they are lit.
+    After the full fill, everything clears and repeats.
     """
 
     origin = random.randrange(LED_COUNT)
-    print(f"New origin: {origin}")
+    print(f"Origin = {origin}")
 
     dist_list = DIST[origin]
-    color = random.choice(XMAS_COLORS)
+    color = random.choice(COLOR_POOL)
 
+    # largest radius needed to cover the entire tree
     max_radius = max(dist_list)
 
     lit = [False] * LED_COUNT
-
     radius = 0.0
 
     while radius <= max_radius:
+        # count LEDs that have turned on
         lit_count = 0
-
-        # Determine who should turn ON this frame
         for i, d in enumerate(dist_list):
             if not lit[i] and d <= radius:
                 lit[i] = True
-
             if lit[i]:
                 lit_count += 1
 
-        # Render frame with constant brightness
-        for i, is_lit in enumerate(lit):
-            if is_lit:
+        # render with constant brightness
+        for i, on in enumerate(lit):
+            if on:
                 strip.setPixelColor(i, scale_brightness(color, lit_count))
             else:
                 strip.setPixelColor(i, GRB(0,0,0))
 
         strip.show()
         time.sleep(frame_delay)
-
         radius += radius_step
 
-    # Pause briefly, then reset
+    # small pause before clear + restart
     time.sleep(0.4)
     clear_strip()
 
-
-# ----------------------------
+# --------------------------------------------------------
 # MAIN LOOP
-# ----------------------------
+# --------------------------------------------------------
 if __name__ == "__main__":
     try:
         clear_strip()
-        print("Running spherical fill with constant brightness...")
+        print("Running spherical contagion fill (vibrant colors)…\n")
 
         while True:
             spherical_fill(
-                radius_step=1.2,    # expansion speed
-                frame_delay=0.02    # smoothness
+                radius_step=1.2,
+                frame_delay=0.02
             )
 
     except KeyboardInterrupt:
-        print("\nClearing LEDs...")
+        print("\nStopping, clearing LEDs…")
         clear_strip()
