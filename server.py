@@ -1,48 +1,52 @@
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
-import uvicorn
+from flask import Flask, render_template, jsonify
 import threading
+import subprocess
 import time
 
-app = FastAPI()
+import top_to_bottom
+import leds_off
 
-# Shared state
-tree_on = False
+app = Flask(__name__)
 
-def led_off():
-    print("Turning LEDs OFF")
-    # insert your clear_strip() call here
+animation_thread = None
 
-def run_led_loop():
-    """Animation loop that runs while tree_on is True."""
-    global tree_on
-    print("LED loop thread started")
+def run_animation():
+    top_to_bottom.run_top_to_bottom()
 
-    while tree_on:
-        # Example: simple heartbeat
-        print("LEDs ON (heartbeat)")
-        time.sleep(1)
+@app.route("/")
+def index():
+    return render_template("index.html")
 
-    led_off()
-    print("LED loop thread stopped")
-
-@app.get("/")
-def landing_page():
-    return FileResponse("index.html")
-
-@app.post("/turn_on")
+@app.route("/turn_on", methods=["POST"])
 def turn_on():
-    global tree_on
-    if not tree_on:
-        tree_on = True
-        threading.Thread(target=run_led_loop, daemon=True).start()
-    return {"status": "ON"}
+    global animation_thread
 
-@app.post("/turn_off")
+    # stop previous animation if running
+    top_to_bottom.running = False
+    time.sleep(0.1)
+
+    # turn off LEDs before starting new animation
+    leds_off.turn_all_off()
+
+    # start new animation thread
+    animation_thread = threading.Thread(target=run_animation)
+    animation_thread.daemon = True
+    animation_thread.start()
+
+    return jsonify({"status": "ON"})
+
+@app.route("/turn_off", methods=["POST"])
 def turn_off():
-    global tree_on
-    tree_on = False
-    return {"status": "OFF"}
+    global animation_thread
+
+    # stop animation
+    top_to_bottom.running = False
+    time.sleep(0.1)
+
+    # turn all LEDs off
+    leds_off.turn_all_off()
+
+    return jsonify({"status": "OFF"})
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=8000)
