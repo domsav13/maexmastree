@@ -1,34 +1,32 @@
-# top_to_bottom.py  (vertical band sweep)
+# top_to_bottom.py
 import time
 import json
 import os
 import signal
 from rpi_ws281x import PixelStrip, Color
-import math
 
-running = True
-strip = None
-
+# -------------------------
+# GRB helper
+# -------------------------
 def GRB(r, g, b):
     return Color(g, r, b)
-
-def handle_exit(signum, frame):
-    global running
-    running = False
 
 # -------------------------
 # Load coordinates
 # -------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(BASE_DIR, "tree_coords.json")) as f:
+COORDS_JSON = os.path.join(BASE_DIR, "tree_coords.json")
+
+with open(COORDS_JSON, "r") as f:
     coords = json.load(f)
 
 LED_COUNT = len(coords)
-ys = [p[1] for p in coords]     # y-coordinates of each LED
+ys = [p[1] for p in coords]          # Y coordinate for each LED
 y_min, y_max = min(ys), max(ys)
+y_range = y_max - y_min
 
 # -------------------------
-# LED Strip Config
+# LED Strip config
 # -------------------------
 LED_PIN        = 18
 LED_FREQ_HZ    = 800000
@@ -37,14 +35,22 @@ LED_BRIGHTNESS = 255
 LED_INVERT     = False
 LED_CHANNEL    = 0
 
+strip = None
+running = True
+
+def handle_exit(signum, frame):
+    global running
+    running = False
+
 def clear_strip():
-    if strip:
-        for i in range(LED_COUNT):
-            strip.setPixelColor(i, GRB(0, 0, 0))
-        strip.show()
+    if strip is None:
+        return
+    for i in range(LED_COUNT):
+        strip.setPixelColor(i, GRB(0, 0, 0))
+    strip.show()
 
 def main():
-    global running, strip
+    global strip, running
 
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
@@ -61,39 +67,47 @@ def main():
     strip.begin()
 
     # -------------------------
-    # Animation parameters
+    # Band parameters
     # -------------------------
-    band_height = (y_max - y_min) * 0.18   # thickness of the light band
-    speed = 0.015                           # delay between frames
-    direction = 1                           # +1 = up, -1 = down
-    position = y_min                        # current vertical position
+    band_frac = 0.18                # thickness of band as fraction of total height
+    band_half = 0.5 * band_frac * y_range
+
+    # start at bottom edge
+    pos = y_min + band_half         # center of band
+    direction = 1                   # +1 up, -1 down
+
+    # how much to move per frame (in Y units)
+    step = y_range / 200.0          # adjust for speed
+    frame_delay = 0.02              # seconds
 
     try:
         while running:
+            # move band center
+            pos += direction * step
 
-            # Move the band
-            position += direction * 0.8  # speed of vertical movement
-
-            # Reverse at bounds
-            if position + band_height > y_max:
+            # reverse direction when band hits top/bottom
+            if pos + band_half >= y_max:
+                pos = y_max - band_half
                 direction = -1
-            elif position < y_min:
+            elif pos - band_half <= y_min:
+                pos = y_min + band_half
                 direction = 1
 
-            # Render frame
+            # draw frame: LEDs inside [pos - band_half, pos + band_half] are ON
+            low = pos - band_half
+            high = pos + band_half
+
             for i, y in enumerate(ys):
-                inside = (position <= y <= position + band_height)
-                if inside:
-                    strip.setPixelColor(i, GRB(255, 255, 255))  # bright white band
+                if low <= y <= high:
+                    strip.setPixelColor(i, GRB(255, 255, 255))  # band ON
                 else:
-                    strip.setPixelColor(i, GRB(0, 0, 0))         # off
+                    strip.setPixelColor(i, GRB(0, 0, 0))        # off
 
             strip.show()
-            time.sleep(speed)
+            time.sleep(frame_delay)
 
     finally:
         clear_strip()
-
 
 if __name__ == "__main__":
     main()
