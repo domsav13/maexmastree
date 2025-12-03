@@ -1,13 +1,14 @@
-# top_to_bottom.py
+# top_to_bottom.py  (Vibrant Vertical Band Sweep)
 import time
 import json
 import os
 import signal
 from rpi_ws281x import PixelStrip, Color
+import colorsys
 
-# -------------------------
-# GRB helper
-# -------------------------
+running = True
+strip = None
+
 def GRB(r, g, b):
     return Color(g, r, b)
 
@@ -21,9 +22,11 @@ with open(COORDS_JSON, "r") as f:
     coords = json.load(f)
 
 LED_COUNT = len(coords)
-ys = [p[1] for p in coords]          # Y coordinate for each LED
-y_min, y_max = min(ys), max(ys)
-y_range = y_max - y_min
+
+# Use Z coordinate for height
+zs = [p[2] for p in coords]
+z_min, z_max = min(zs), max(zs)
+z_range = z_max - z_min
 
 # -------------------------
 # LED Strip config
@@ -35,20 +38,28 @@ LED_BRIGHTNESS = 255
 LED_INVERT     = False
 LED_CHANNEL    = 0
 
-strip = None
-running = True
-
+# -------------------------
+# Helpers
+# -------------------------
 def handle_exit(signum, frame):
     global running
     running = False
 
 def clear_strip():
-    if strip is None:
-        return
-    for i in range(LED_COUNT):
-        strip.setPixelColor(i, GRB(0, 0, 0))
-    strip.show()
+    if strip:
+        for i in range(LED_COUNT):
+            strip.setPixelColor(i, GRB(0, 0, 0))
+        strip.show()
 
+def vibrant_color(hue):
+    """Returns a GRB vibrant color using HSV full saturation + brightness."""
+    r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+    return GRB(int(r * 255), int(g * 255), int(b * 255))
+
+
+# -------------------------
+# Main Animation
+# -------------------------
 def main():
     global strip, running
 
@@ -66,48 +77,53 @@ def main():
     )
     strip.begin()
 
-    # -------------------------
     # Band parameters
-    # -------------------------
-    band_frac = 0.18                # thickness of band as fraction of total height
-    band_half = 0.5 * band_frac * y_range
+    band_frac = 0.15              # thickness as fraction of height
+    band_half = (band_frac * z_range) / 2.0
 
-    # start at bottom edge
-    pos = y_min + band_half         # center of band
-    direction = 1                   # +1 up, -1 down
+    pos = z_min + band_half       # center of band
+    direction = 1                 # 1 = up, -1 = down
 
-    # how much to move per frame (in Y units)
-    step = y_range / 200.0          # adjust for speed
-    frame_delay = 0.02              # seconds
+    z_step = z_range / 200.0      # vertical movement per frame
+    frame_delay = 0.02            # speed of animation
+
+    hue = 0.0                     # starting color hue
+    hue_step = 0.004              # how fast colors cycle
 
     try:
         while running:
-            # move band center
-            pos += direction * step
 
-            # reverse direction when band hits top/bottom
-            if pos + band_half >= y_max:
-                pos = y_max - band_half
+            # Move vertical band
+            pos += direction * z_step
+
+            # Reverse direction at ends
+            if pos + band_half >= z_max:
+                pos = z_max - band_half
                 direction = -1
-            elif pos - band_half <= y_min:
-                pos = y_min + band_half
+            elif pos - band_half <= z_min:
+                pos = z_min + band_half
                 direction = 1
 
-            # draw frame: LEDs inside [pos - band_half, pos + band_half] are ON
             low = pos - band_half
             high = pos + band_half
 
-            for i, y in enumerate(ys):
-                if low <= y <= high:
-                    strip.setPixelColor(i, GRB(255, 255, 255))  # band ON
+            # Cycle vibrant color
+            hue = (hue + hue_step) % 1.0
+            color = vibrant_color(hue)
+
+            # Render LEDs
+            for i, z in enumerate(zs):
+                if low <= z <= high:
+                    strip.setPixelColor(i, color)
                 else:
-                    strip.setPixelColor(i, GRB(0, 0, 0))        # off
+                    strip.setPixelColor(i, GRB(0, 0, 0))
 
             strip.show()
             time.sleep(frame_delay)
 
     finally:
         clear_strip()
+
 
 if __name__ == "__main__":
     main()
