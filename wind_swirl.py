@@ -65,7 +65,7 @@ def main():
 
     # Animation parameters
     t = 0.0
-    spiral_speed = 0.12           # MUCH faster spiral
+    spiral_speed = 0.06           # MUCH faster spiral
     swirl_strength = 11.0         # tighter wind spiral
     blink_speed = 0.10            # pulsing brightness
 
