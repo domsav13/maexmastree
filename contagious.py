@@ -1,180 +1,139 @@
+# contagion_effect.py – spherical spreading contagion for 500 LEDs
 import time
-import json
 import random
 import math
+import os
+import json
 from rpi_ws281x import PixelStrip, Color
-import colorsys
 
-# --------------------------------------------------------
-# LED STRIP CONFIG (GRB WS2811)
-# --------------------------------------------------------
-LED_COUNT      = 500
+# -----------------------------------------------------
+# GRB helper (WS2811 uses GRB order)
+# -----------------------------------------------------
+def GRB(r, g, b):
+    return Color(g, r, b)
+
+# -----------------------------------------------------
+# Load coordinates from JSON (500 LEDs)
+# -----------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+COORDS_JSON = os.path.join(BASE_DIR, "tree_coords.json")
+
+with open(COORDS_JSON, "r") as f:
+    coords = json.load(f)   # list of [x,y,z]
+
+LED_COUNT = len(coords)
+led_coords = coords[:]      # nice alias
+
+print(f"Loaded {LED_COUNT} LED coordinates.")
+
+# -----------------------------------------------------
+# LED strip configuration
+# -----------------------------------------------------
 LED_PIN        = 18
 LED_FREQ_HZ    = 800000
 LED_DMA        = 10
-LED_BRIGHTNESS = 255     # use full brightness; we will scale manually
+LED_BRIGHTNESS = 255
 LED_INVERT     = False
 LED_CHANNEL    = 0
 
-# --------------------------------------------------------
-# LOAD 3D COORDINATES
-# --------------------------------------------------------
-with open("tree_coords.json", "r") as f:
-    coords = json.load(f)
-
-coords = [(float(x), float(y), float(z)) for (x, y, z) in coords]
-
-# --------------------------------------------------------
-# INITIALIZE PIXEL STRIP
-# --------------------------------------------------------
 strip = PixelStrip(
-    LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA,
-    LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL
+    LED_COUNT,
+    LED_PIN,
+    LED_FREQ_HZ,
+    LED_DMA,
+    LED_INVERT,
+    LED_BRIGHTNESS,
+    LED_CHANNEL
 )
 strip.begin()
 
-# --------------------------------------------------------
-# COLOR HELPERS (WS2811 USES GRB!)
-# --------------------------------------------------------
-def GRB(r, g, b):
-    """Create a Color() value in GRB order."""
-    return Color(g, r, b)
-
-def hsv_to_grb(h):
-    """Convert a hue (0–1) to bright GRB color via HSV."""
-    r, g, b = colorsys.hsv_to_rgb(h, 1.0, 1.0)
-    return GRB(int(r*255), int(g*255), int(b*255))
-
-# 20 vibrant rainbow hues
-RAINBOW_COLORS = [hsv_to_grb(i/20) for i in range(20)]
-
-# Extra accent colors
-EXTRA_COLORS = [
-    GRB(255, 0,   0),    # bright red
-    GRB(0,   255, 0),    # bright green
-    GRB(255, 255, 0),    # gold/yellow
-    GRB(255, 0,   255),  # magenta
-    GRB(0,   255, 255),  # cyan
-    GRB(255, 100, 0),    # orange
-    GRB(180, 0,   255),  # violet
-    GRB(255, 255, 255),  # white highlight
-]
-
-COLOR_POOL = RAINBOW_COLORS + EXTRA_COLORS
-
-# --------------------------------------------------------
-# UTILITY
-# --------------------------------------------------------
+# -----------------------------------------------------
+# Clear all LEDs
+# -----------------------------------------------------
 def clear_strip():
     for i in range(LED_COUNT):
         strip.setPixelColor(i, GRB(0,0,0))
     strip.show()
 
-def distance(i, j):
-    x1, y1, z1 = coords[i]
-    x2, y2, z2 = coords[j]
-    return math.sqrt((x1-x2)**2 + (y1-y2)**2 + (z1-z2)**2)
-
-# --------------------------------------------------------
-# PRECOMPUTE DISTANCE MATRIX (fast animation)
-# --------------------------------------------------------
-print("Computing distance matrix (one-time)…")
-DIST = [
-    [distance(i, j) for j in range(LED_COUNT)]
-    for i in range(LED_COUNT)
-]
-print("Distance matrix ready.\n")
-
-# --------------------------------------------------------
-# CONSTANT BRIGHTNESS NORMALIZATION
-# --------------------------------------------------------
-def scale_brightness(color, lit_count, max_total_brightness=160):
+# -----------------------------------------------------
+# Main contagion animation
+# -----------------------------------------------------
+def animate_contagious_effect(interval=0.01, contagion_speed=10.0, hold_time=0.5):
     """
-    Ensures visual brightness stays constant no matter how 
-    many LEDs are lit. lit_count is number of lit LEDs.
+    Picks a random LED, random color, spreads outward until full tree is lit.
     """
-    if lit_count <= 0:
-        return GRB(0,0,0)
+    while True:
 
-    # extract GRB
-    g = (color >> 16) & 0xFF
-    r = (color >> 8)  & 0xFF
-    b =  color        & 0xFF
+        # ----------------------------
+        # Choose starting LED + color
+        # ----------------------------
+        start_idx = random.randrange(LED_COUNT)
+        sx, sy, sz = led_coords[start_idx]
 
-    scale = max_total_brightness / lit_count
-    if scale > 1:
-        scale = 1
+        # strong, bright, vibrant color set
+        r = random.randint(150, 255)
+        g = random.randint(150, 255)
+        b = random.randint(150, 255)
 
-    r = int(r * scale)
-    g = int(g * scale)
-    b = int(b * scale)
+        contagion_color = GRB(r, g, b)
 
-    return GRB(r, g, b)
+        # ----------------------------
+        # Compute distances from seed
+        # ----------------------------
+        distances = []
+        max_dist = 0.0
 
-# --------------------------------------------------------
-# SPHERICAL CONTAGION FILL (GROW UNTIL FULL)
-# --------------------------------------------------------
-def spherical_fill(
-    radius_step=1.2,
-    frame_delay=0.02
-):
-    """
-    One LED is chosen.
-    Radius expands outward until all LEDs are lit.
-    LEDs stay ON once they are lit.
-    After the full fill, everything clears and repeats.
-    """
+        for (x, y, z) in led_coords:
+            d = math.dist((sx, sy, sz), (x, y, z))
+            distances.append(d)
+            if d > max_dist:
+                max_dist = d
 
-    origin = random.randrange(LED_COUNT)
-    print(f"Origin = {origin}")
+        spread_duration = max_dist / contagion_speed
 
-    dist_list = DIST[origin]
-    color = random.choice(COLOR_POOL)
-
-    # largest radius needed to cover the entire tree
-    max_radius = max(dist_list)
-
-    lit = [False] * LED_COUNT
-    radius = 0.0
-
-    while radius <= max_radius:
-        # count LEDs that have turned on
-        lit_count = 0
-        for i, d in enumerate(dist_list):
-            if not lit[i] and d <= radius:
-                lit[i] = True
-            if lit[i]:
-                lit_count += 1
-
-        # render with constant brightness
-        for i, on in enumerate(lit):
-            if on:
-                strip.setPixelColor(i, scale_brightness(color, lit_count))
-            else:
-                strip.setPixelColor(i, GRB(0,0,0))
-
-        strip.show()
-        time.sleep(frame_delay)
-        radius += radius_step
-
-    # small pause before clear + restart
-    time.sleep(0.4)
-    clear_strip()
-
-# --------------------------------------------------------
-# MAIN LOOP
-# --------------------------------------------------------
-if __name__ == "__main__":
-    try:
-        clear_strip()
-        print("Running spherical contagion fill (vibrant colors)…\n")
-
+        # ----------------------------
+        # Spread outward
+        # ----------------------------
+        t0 = time.time()
         while True:
-            spherical_fill(
-                radius_step=1.2,
-                frame_delay=0.02
-            )
+            elapsed = time.time() - t0
+            radius  = contagion_speed * elapsed
 
-    except KeyboardInterrupt:
-        print("\nStopping, clearing LEDs…")
+            clear_strip()
+
+            # light LEDs that fall within the growing radius
+            for idx, d in enumerate(distances):
+                if d <= radius:
+                    strip.setPixelColor(idx, contagion_color)
+
+            strip.show()
+
+            if elapsed >= spread_duration:
+                break
+
+            time.sleep(interval)
+
+        # ----------------------------
+        # Hold full-color tree
+        # ----------------------------
+        for i in range(LED_COUNT):
+            strip.setPixelColor(i, contagion_color)
+        strip.show()
+        time.sleep(hold_time)
+
+        # ----------------------------
+        # Clear before repeating
+        # ----------------------------
         clear_strip()
+        time.sleep(0.02)
+
+
+# -----------------------------------------------------
+# Run if called directly
+# -----------------------------------------------------
+if __name__ == "__main__":
+    animate_contagious_effect(
+        interval=0.01,
+        contagion_speed=9.5,
+        hold_time=0.5
+    )
