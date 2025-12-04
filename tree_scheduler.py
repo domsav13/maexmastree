@@ -19,9 +19,11 @@ PYTHON = "/usr/bin/python3"      # Use system python for WS2811
 ANIMATIONS = [
     "double_helix.py",
     "wind_swirl.py",
-    "snowfall.py",
     "top_to_bottom.py",
-    "snake.py"
+    "snake.py",
+    "matrix_rain.py",
+    "fireworks.py",
+    "contagious.py"
 ]
 
 # Script to turn LEDs off instantly
