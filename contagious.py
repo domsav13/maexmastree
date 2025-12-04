@@ -1,4 +1,4 @@
-# contagion_effect_fixed.py – smooth non-blinking contagion spread for 500 LEDs (WS2811 GRB)
+# contagion_effect_fast_singlecolor.py – smooth fast contagion spread (WS2811 GRB)
 
 import time
 import random
@@ -21,10 +21,12 @@ with open(os.path.join(BASE_DIR, "tree_coords.json")) as f:
     coords = json.load(f)
 
 LED_COUNT = len(coords)
+led_coords = [tuple(p) for p in coords]
+
 print(f"Loaded {LED_COUNT} LED coordinates.")
 
 # -----------------------------------------------------
-# LED setup
+# LED strip configuration
 # -----------------------------------------------------
 LED_PIN        = 18
 LED_FREQ_HZ    = 800000
@@ -45,42 +47,38 @@ strip = PixelStrip(
 strip.begin()
 
 # -----------------------------------------------------
-# Utilities
+# Clear ALL LEDs
 # -----------------------------------------------------
 def clear_strip():
     for i in range(LED_COUNT):
         strip.setPixelColor(i, GRB(0,0,0))
     strip.show()
 
-# Pre-store LED coordinates as tuples for speed
-led_coords = [tuple(p) for p in coords]
-
 # -----------------------------------------------------
-# FIXED Contagion Animation
+# Contagion animation
 # -----------------------------------------------------
-def animate_contagious_effect(interval=0.01, contagion_speed=10.0, hold_time=0.5):
+def animate_contagious_effect(interval=0.008, contagion_speed=14.0, hold_time=0.5):
     """
-    Perfect smooth contagious expansion:
-    - No flicker at boundary
-    - No destructive clear every frame
-    - Full fill -> hold -> reset
+    Smooth, single-color contagion spread.
+    Faster spread speed. No pulsing. No flicker.
     """
 
     while True:
 
         # ----------------------------
-        # Choose starting LED + bright random color
+        # 1. Choose seed + single color
         # ----------------------------
         start_idx = random.randrange(LED_COUNT)
         sx, sy, sz = led_coords[start_idx]
 
+        # ONE color per entire spread (choose new each cycle)
         r = random.randint(170, 255)
         g = random.randint(170, 255)
         b = random.randint(170, 255)
         contagion_color = GRB(r, g, b)
 
         # ----------------------------
-        # Compute all distances once
+        # 2. Precompute distances
         # ----------------------------
         distances = []
         max_dist = 0.0
@@ -91,54 +89,52 @@ def animate_contagious_effect(interval=0.01, contagion_speed=10.0, hold_time=0.5
             if d > max_dist:
                 max_dist = d
 
-        # ----------------------------
-        # Clear once at start
-        # ----------------------------
+        # clear once
         clear_strip()
 
         # ----------------------------
-        # Expand contagion
+        # 3. Expand contagion
         # ----------------------------
         t0 = time.time()
 
         while True:
             elapsed = time.time() - t0
-            radius  = contagion_speed * elapsed
+            radius = contagion_speed * elapsed
 
-            # Cap radius to avoid overshooting max_dist
             if radius > max_dist:
                 radius = max_dist
 
-            # Set LEDs inside radius ON one time only
+            # Light LEDs inside radius
             for idx, d in enumerate(distances):
                 if d <= radius:
                     strip.setPixelColor(idx, contagion_color)
 
             strip.show()
 
-            # If radius fully covers the tree → stop immediately
+            # Stop spread immediately when full
             if radius >= max_dist:
                 break
 
             time.sleep(interval)
 
         # ----------------------------
-        # Hold full tree
+        # 4. Hold full tree
         # ----------------------------
         time.sleep(hold_time)
 
         # ----------------------------
-        # Clear for next cycle
+        # 5. Reset for next color cycle
         # ----------------------------
         clear_strip()
-        time.sleep(0.05)
+        time.sleep(0.03)
+
 
 # -----------------------------------------------------
 # Main
 # -----------------------------------------------------
 if __name__ == "__main__":
     animate_contagious_effect(
-        interval=0.01,
-        contagion_speed=9.5,
-        hold_time=0.6
+        interval=0.008,     # faster frame rate
+        contagion_speed=14, # faster radius growth
+        hold_time=0.5
     )
