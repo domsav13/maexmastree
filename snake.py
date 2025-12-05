@@ -10,9 +10,9 @@ import json
 # ARGUMENT PARSING
 # ---------------------------------------------------
 parser = argparse.ArgumentParser(description="Multi-snake effect on 3D LED tree")
-parser.add_argument("-n", "--num-snakes", type=int, default=20,
+parser.add_argument("-n", "--num-snakes", type=int, default=25,
                     help="Number of independent snakes")
-parser.add_argument("-l", "--length", type=int, default=5,
+parser.add_argument("-l", "--length", type=int, default=10,
                     help="Length of each snake in LEDs")
 parser.add_argument("-d", "--delay", type=float, default=0.1,
                     help="Seconds between frames")
