@@ -27,7 +27,9 @@ ANIMATIONS = [
     "snake.py",
     "matrix_rain.py",
     "fireworks.py",
-    "contagious.py"
+    "contagious.py",
+    "candy_cane.py",
+    "light_beams.py"
 ]
 
 OFF_SCRIPT = "leds_off.py"
