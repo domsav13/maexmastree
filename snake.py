@@ -46,7 +46,7 @@ print(f"Loaded {LED_COUNT} coordinates.")
 # ---------------------------------------------------
 # WS2811 LED STRIP SETUP (GRB FORMAT)
 # ---------------------------------------------------
-LED_PIN        = 18
+LED_PIN        = 12
 LED_FREQ_HZ    = 800000
 LED_DMA        = 10
 LED_BRIGHTNESS = 255    # we control brightness manually by segments
