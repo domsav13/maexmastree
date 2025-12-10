@@ -22,6 +22,7 @@ PYTHON = "/usr/bin/python3"
 # Animations to select from (filenames inside ANIMATION_DIR)
 ANIMATIONS = [
     "wind_swirl.py",
+    "double_helix.py",
     "snowfall.py",
     "snake.py",
     "matrix_rain.py",
