@@ -21,7 +21,6 @@ PYTHON = "/usr/bin/python3"
 
 # Animations to select from (filenames inside ANIMATION_DIR)
 ANIMATIONS = [
-    "double_helix.py",
     "wind_swirl.py",
     "snowfall.py",
     "snake.py",
@@ -29,7 +28,8 @@ ANIMATIONS = [
     "fireworks.py",
     "contagious.py",
     "candy_cane.py",
-    "light_beams.py"
+    "light_beams.py",
+    "random_plane.py"
 ]
 
 OFF_SCRIPT = "leds_off.py"
