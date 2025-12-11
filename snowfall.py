@@ -102,7 +102,7 @@ def main():
     signal.signal(signal.SIGINT, handle_exit)
 
     strip = PixelStrip(
-        LED_COUNT, 12, 800000, 10, False, 255, 0
+        LED_COUNT, 18, 800000, 10, False, 255, 0
     )
     strip.begin()
 
