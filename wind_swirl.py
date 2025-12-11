@@ -40,7 +40,7 @@ height = z_max - z_min
 # -----------------------------
 # LED Strip
 # -----------------------------
-LED_PIN = 12
+LED_PIN = 18
 LED_FREQ_HZ = 800000
 LED_DMA = 10
 LED_BRIGHTNESS = 255
