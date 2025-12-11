@@ -25,7 +25,7 @@ with open(COORD_PATH, "r") as f:
 LED_COUNT = len(positions)
 
 
-LED_PIN        = 12
+LED_PIN        = 18
 LED_FREQ_HZ    = 800000
 LED_DMA        = 10
 LED_INVERT     = False
