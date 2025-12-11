@@ -38,7 +38,7 @@ sorted_by_z = sorted(range(LED_COUNT), key=lambda i: zs[i], reverse=True)
 # ----------------------------------------------------
 # Strip configuration
 # ----------------------------------------------------
-LED_PIN        = 12
+LED_PIN        = 18
 LED_FREQ_HZ    = 800000
 LED_DMA        = 10
 LED_BRIGHTNESS = 255
