@@ -51,7 +51,7 @@ for x, y, z in coords:
 # -------------------------
 # LED Setup
 # -------------------------
-LED_PIN        = 12
+LED_PIN        = 18
 LED_FREQ_HZ    = 800000
 LED_DMA        = 10
 LED_BRIGHTNESS = 255
