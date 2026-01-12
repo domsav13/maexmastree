@@ -3,7 +3,7 @@ import os
 import time
 import random
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 # -----------------------------
@@ -12,10 +12,10 @@ import pytz
 ANIMATION_DIR = "/home/dsavarino/maexmastree"
 ANIMATION_DURATION = 30 * 60     # 30 minutes
 
-# *** FIXED FOR 9 AM → 12 AM EST ***
+# Run daily from 9:00 AM -> 10:00 PM Eastern
 EST = pytz.timezone("America/New_York")
-ACTIVE_START = 9                 # 9 AM EST
-ACTIVE_END = 24                 # Midnight EST
+ACTIVE_START_HOUR = 9            # 9 AM
+ACTIVE_END_HOUR = 22             # 10 PM (22:00)
 
 PYTHON = "/usr/bin/python3"
 
@@ -39,10 +39,29 @@ OFF_SCRIPT = "leds_off.py"
 # HELPER FUNCTIONS
 # -----------------------------
 def tree_should_be_on():
-    """Check if current time in EST falls between ACTIVE_START and ACTIVE_END."""
+    """True if current EST time is between 09:00 and 22:00."""
     now_est = datetime.now(EST)
-    hour = now_est.hour
-    return ACTIVE_START <= hour < ACTIVE_END
+    start = now_est.replace(hour=ACTIVE_START_HOUR, minute=0, second=0, microsecond=0)
+    end = now_est.replace(hour=ACTIVE_END_HOUR, minute=0, second=0, microsecond=0)
+    return start <= now_est < end
+
+
+def seconds_until_next_window_check():
+    """
+    When OFF-hours, sleep until the next meaningful boundary
+    (either today's start time or tomorrow's start time).
+    """
+    now_est = datetime.now(EST)
+    today_start = now_est.replace(hour=ACTIVE_START_HOUR, minute=0, second=0, microsecond=0)
+    today_end = now_est.replace(hour=ACTIVE_END_HOUR, minute=0, second=0, microsecond=0)
+
+    if now_est < today_start:
+        target = today_start
+    else:
+        # After end time -> next day's start
+        target = today_start + timedelta(days=1)
+
+    return max(5, int((target - now_est).total_seconds()))
 
 
 def start_animation(anim_path):
@@ -69,24 +88,32 @@ def turn_off_leds():
 # MAIN LOOP
 # -----------------------------
 def main():
-
     current_proc = None
     last_switch_time = 0
+    leds_are_off = False
 
     while True:
         try:
             now = time.time()
 
-            # TIME CHECK FIXED (EST)
+            # OFF HOURS
             if not tree_should_be_on():
-
                 if current_proc:
                     stop_animation(current_proc)
                     current_proc = None
 
-                turn_off_leds()
-                time.sleep(60)
+                # Only run leds_off once per off-period (avoids spamming it)
+                if not leds_are_off:
+                    turn_off_leds()
+                    leds_are_off = True
+
+                sleep_s = seconds_until_next_window_check()
+                print(f"[Scheduler] Outside active window. Sleeping {sleep_s} seconds...")
+                time.sleep(sleep_s)
                 continue
+
+            # ON HOURS
+            leds_are_off = False
 
             if current_proc is None:
                 anim = random.choice(ANIMATIONS)
