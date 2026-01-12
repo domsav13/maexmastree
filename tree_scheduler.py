@@ -23,13 +23,13 @@ PYTHON = "/usr/bin/python3"
 ANIMATIONS = [
     "wind_swirl.py",
     "double_helix.py",
-    "snowfall.py",
     "snake.py",
     "matrix_rain.py",
     "fireworks.py",
     "contagious.py",
     "candy_cane.py",
     "light_beams.py",
+    "top_to_bottom.py",
     "random_plane.py"
 ]
 
